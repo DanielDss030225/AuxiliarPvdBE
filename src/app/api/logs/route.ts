@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebaseAdmin';
 
+export async function GET() {
+    try {
+        if (!db) return NextResponse.json({ error: 'Database not initialized' }, { status: 500 });
+
+        // Buscar últimos 200 logs para não sobrecarregar
+        const snapshot = await db.ref('history').limitToLast(200).once('value');
+        const data = snapshot.val() || {};
+
+        return NextResponse.json(data);
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
 export async function POST(request: Request) {
     try {
         if (!db) return NextResponse.json({ error: 'Database not initialized' }, { status: 500 });
@@ -12,10 +26,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Campos obrigatórios ausentes: usuario e acao' }, { status: 400 });
         }
 
-        // Gerar timestamp se não enviado
         const logTimestamp = timestamp || new Date().toISOString();
 
-        // Criar entrada de log
         const logEntry = {
             usuario,
             acao,
@@ -23,8 +35,6 @@ export async function POST(request: Request) {
             timestamp: logTimestamp
         };
 
-        // Salvar no Firebase (node /history)
-        // Usamos o SDK admin para fazer o push
         const ref = db.ref('history');
         const newLogRef = ref.push();
         await newLogRef.set(logEntry);
