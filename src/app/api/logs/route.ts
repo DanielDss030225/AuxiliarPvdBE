@@ -1,16 +1,27 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebaseAdmin';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         if (!db) return NextResponse.json({ error: 'Database not initialized' }, { status: 500 });
 
-        // Buscar últimos 200 logs para não sobrecarregar
-        const snapshot = await db.ref('history').limitToLast(200).once('value');
+        const { searchParams } = new URL(request.url);
+        const limit = parseInt(searchParams.get('limit') || '50');
+        const endAt = searchParams.get('endAt'); // timestamp para paginação
+
+        let query: any = db.ref('history').orderByChild('timestamp');
+
+        if (endAt) {
+            // Para pegar os anteriores ao último recebido
+            query = query.endBefore(endAt);
+        }
+
+        const snapshot = await query.limitToLast(limit).once('value');
         const data = snapshot.val() || {};
 
         return NextResponse.json(data);
     } catch (error: any) {
+        console.error('Erro ao buscar logs:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
