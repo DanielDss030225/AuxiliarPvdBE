@@ -17,7 +17,18 @@ export async function GET(request: Request) {
         }
 
         const snapshot = await query.limitToLast(limit).once('value');
-        const data = snapshot.val() || {};
+        let data = snapshot.val() || {};
+
+        const search = searchParams.get('search')?.toLowerCase();
+        if (search) {
+            const filteredEntries = Object.entries(data).filter(([id, log]: [string, any]) => {
+                const content = JSON.stringify(log).toLowerCase();
+                return content.includes(search) ||
+                    log.usuario?.toLowerCase().includes(search) ||
+                    log.acao?.toLowerCase().includes(search);
+            });
+            data = Object.fromEntries(filteredEntries);
+        }
 
         return NextResponse.json(data);
     } catch (error: any) {

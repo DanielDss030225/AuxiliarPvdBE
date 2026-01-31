@@ -36,14 +36,41 @@ export async function POST(request: Request) {
     }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         if (!db) {
             return NextResponse.json({ error: 'Database not initialized' }, { status: 500 });
         }
+
+        const { searchParams } = new URL(request.url);
+        const search = searchParams.get('search')?.toLowerCase();
+        const natureza = searchParams.get('natureza');
+        const municipio = searchParams.get('municipio')?.toLowerCase();
+
         const snapshot = await db.ref('REDS').once('value');
-        const data = snapshot.val();
-        return NextResponse.json(data || {});
+        let data = snapshot.val() || {};
+
+        // Filtro Server-Side (Simulado em memória para Firebase Realtime Database sem índices complexos)
+        let filteredEntries = Object.entries(data);
+
+        if (search || natureza || municipio) {
+            filteredEntries = filteredEntries.filter(([id, red]: [string, any]) => {
+                if (natureza && red.natureza !== natureza) return false;
+                if (municipio) {
+                    const redMun = red.municipio?.toLowerCase();
+                    const redEnd = red.endereco?.toLowerCase();
+                    if (!(redMun === municipio || (redEnd && redEnd.includes(municipio)))) return false;
+                }
+                if (search) {
+                    const content = JSON.stringify(red).toLowerCase();
+                    if (!content.includes(search)) return false;
+                }
+                return true;
+            });
+            data = Object.fromEntries(filteredEntries);
+        }
+
+        return NextResponse.json(data);
     } catch (error: any) {
         console.error('Error fetching REDS:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
