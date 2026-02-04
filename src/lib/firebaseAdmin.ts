@@ -36,7 +36,7 @@ export function createFirebaseAdminApp() {
 }
 
 // Initialize immediately to export the db instance
-let dbInstance;
+let dbInstance: admin.database.Database | undefined;
 try {
     const app = createFirebaseAdminApp();
     dbInstance = app.database();

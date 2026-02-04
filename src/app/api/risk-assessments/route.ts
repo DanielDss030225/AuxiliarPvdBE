@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebaseAdmin';
 
+// Explicit runtime configuration for all HTTP methods including DELETE
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
     try {
         if (!db) return NextResponse.json({ error: 'Database not initialized' }, { status: 500 });
@@ -44,6 +48,22 @@ export async function POST(request: Request) {
             const newRef = await db.ref('AvaliacoesDeRisco').push(data);
             return NextResponse.json({ success: true, id: newRef.key });
         }
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        if (!db) return NextResponse.json({ error: 'Database not initialized' }, { status: 500 });
+
+        const { searchParams } = new URL(request.url);
+        const id = searchParams.get('id');
+
+        if (!id) return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
+
+        await db.ref(`AvaliacoesDeRisco/${id}`).remove();
+        return NextResponse.json({ success: true, message: 'Deleted successfully' });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
