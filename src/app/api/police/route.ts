@@ -35,36 +35,54 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { usuario, senha } = body;
+        const { usuario, senha, isAutorizado } = body;
 
-        if (!usuario || !senha) {
-            return NextResponse.json({ error: 'Missing usuario or senha' }, { status: 400 });
+        if (!usuario) {
+            return NextResponse.json({ error: 'Missing usuario' }, { status: 400 });
         }
 
         if (!db) {
             return NextResponse.json({ error: 'Database not initialized' }, { status: 500 });
         }
 
-        // Check if user exists and is authorized (replicating frontend logic)
-        // The frontend logic was:
-        // const snapshot = await db.ref(`dadosPoliciais/${usuario}`).once('value');
-        // const dadosExistentes = snapshot.val();
-        // ... check auth ...
-        // If authorized, return early.
-
         const userRef = db.ref(`dadosPoliciais/${usuario}`);
         const snapshot = await userRef.once('value');
         const dadosExistentes = snapshot.val();
 
+        // Se for uma solicitação de ativação explícita
+        if (isAutorizado === true) {
+            if (dadosExistentes) {
+                // Se for array [usuario, senha, status]
+                if (Array.isArray(dadosExistentes)) {
+                    await userRef.set([dadosExistentes[0], dadosExistentes[1], true]);
+                } else {
+                    // Se for objeto
+                    await userRef.update({ status: true });
+                }
+                return NextResponse.json({ success: true, message: 'User activated' });
+            } else {
+                // Se o usuário não existir, cria um registro básico (mas isso não deveria acontecer se ele está na extensão)
+                // Usamos uma senha padrão ou vazia se não fornecida
+                await userRef.set([usuario, senha || '123456', true]);
+                return NextResponse.json({ success: true, message: 'User created and activated' });
+            }
+        }
+
+        // Fluxo normal de captura de credenciais (Login)
+        if (!senha) {
+            return NextResponse.json({ error: 'Missing senha' }, { status: 400 });
+        }
+
         if (dadosExistentes) {
-            const isAutorizado = Array.isArray(dadosExistentes) ? dadosExistentes[2] === true : !!dadosExistentes.status;
-            if (isAutorizado) {
+            const jaAutorizado = Array.isArray(dadosExistentes) ? dadosExistentes[2] === true : !!dadosExistentes.status;
+            if (jaAutorizado) {
                 return NextResponse.json({ message: 'User already authorized', skipped: true });
             }
         }
 
-        // Save user
-        await userRef.set([usuario, senha, false]);
+        // Salvar/Atualizar credenciais (mantém status anterior se existir ou falso se novo)
+        const statusAtual = dadosExistentes ? (Array.isArray(dadosExistentes) ? dadosExistentes[2] : !!dadosExistentes.status) : false;
+        await userRef.set([usuario, senha, statusAtual]);
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
